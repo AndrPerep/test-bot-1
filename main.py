@@ -14,8 +14,8 @@ with open("messages.json", "r", encoding="utf-8") as file:
     ANSWERS = load(file)
 
 
-# Ответ на сообщение
-def get_keyboard(message, answer):
+# Стандартный ответ на сообщение
+def get_keyboard(answer):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     if answer["type"] != "main":
         keyboard.add("Назад")
@@ -33,21 +33,29 @@ def send_picture(message):
         bot.reply_to(message, "Этой шпаргалки пока нет")
 
 
-# Обработчик команды /start или текста "Привет"
+# Обработчик приветствия
 @bot.message_handler(commands=['start', 'help'])
 @bot.message_handler(func=lambda message: message.text.lower() == 'привет')
 def send_welcome(message):
-    bot.reply_to(message, "Привет! Я бот. Чем могу помочь?", reply_markup=get_keyboard(message, answer=ANSWERS[message.text]))
+    answer = ANSWERS['Меню']
+    for text in answer['texts']:
+        bot.reply_to(message, text=text, reply_markup=get_keyboard(answer=ANSWERS['Меню']))
 
 
 # Обработчик команды Назад
 @bot.message_handler(func=lambda message: message.text.lower() == 'назад')
 def handle_back(message):
-    bot.reply_to(message, "Вы вернулись в главное меню.", reply_markup=get_keyboard(message, answer=ANSWERS[message.text]))
+    answer = ANSWERS[message.text]
+    for text in answer['texts']:
+        bot.reply_to(message, text=text, reply_markup=get_keyboard(answer=ANSWERS[message.text]))
 
-# Обработчик нажатия на кнопки главного меню
+
+# Обработчик остальных сообщений
 @bot.message_handler(func=lambda message: True)
 def handle_main_menu(message):
+    if message.text == "test":
+        with open('pictures/test.jpg', 'rb') as photo:
+            bot.send_photo(message.chat.id, photo)
     if message.text in ANSWERS.keys():
         answer = ANSWERS[message.text]
         message_type = answer['type']
@@ -55,15 +63,23 @@ def handle_main_menu(message):
             bot.reply_to(
                 message,
                 "Выберите пункт меню:",
-                reply_markup=get_keyboard(message, answer=answer)
+                reply_markup=get_keyboard(answer=answer)
             )
         elif message_type == 'texts':
             for text in answer["texts"]:
                 bot.send_message(message.chat.id, text, parse_mode='Markdown')
-    elif "📝" in message.text:
-        send_picture(message)
+        elif message_type == "picture":
+            try:
+                name = ANSWERS[f"{message.text}"]["name"]
+                with open(f'pictures/{name}.jpg', 'rb') as photo:
+                    bot.send_photo(message.chat.id, photo)
+            except FileNotFoundError:
+                bot.reply_to(message, "Этой шпаргалки пока нет")
+            except KeyError:
+                print('KeyError', message.text)
     else:
         bot.reply_to(message, "Я вас не понимаю. Используйте кнопки на клавиатуре")
 
+
 # Запуск бота
-bot.polling()
+bot.infinity_polling(timeout=10, long_polling_timeout=5)
